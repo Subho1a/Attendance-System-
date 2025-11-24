@@ -1,1 +1,6 @@
-timestamp,student_id,name,confidence,image_path
+timestamp,student_id,name,confidence
+2025-11-24 21:44:19,DemoUser,DemoUser,0.9876
+2025-11-24 21:52:09,TestUser,TestUser,0.8765
+2025-11-24 22:01:23,Arindam,Arindam,0.9681
+2025-11-24 22:02:52,swapnil,swapnil,0.9782
+2025-11-24 22:03:02,Arindam,Arindam,0.9895

@@ -6,6 +6,9 @@ Behavior:
 - No saving of face crop images (crops folder removed)
 - Attendance rows appended to attendance/attendance.csv with header:
     timestamp,student_id,name,confidence
+- CSV is auto-created with header if missing
+- Prevent duplicate attendance within 1 minute
+- Optional name -> student_id mapping via models/id_map.json
 
 Run:
     venv\Scripts\activate
@@ -37,6 +40,7 @@ from src.utils import (
     ATT_CSV,
     ATT_DIR,
     recently_marked,
+    ensure_attendance_csv,  # added import
 )
 
 # Optional mapping file: name -> student_id
@@ -51,14 +55,11 @@ def cv2_to_qimage(frame_bgr):
     return QtGui.QImage(rgb.data, w, h, bytes_per_line, QtGui.QImage.Format_RGB888)
 
 
-def ensure_attendance_csv():
+def ensure_attendance_csv_gui():
     """Ensure attendance CSV exists and has the desired header:
        timestamp,student_id,name,confidence
     """
-    os.makedirs(ATT_DIR, exist_ok=True)
-    if not os.path.exists(ATT_CSV):
-        with open(ATT_CSV, "w", encoding="utf-8", newline="") as f:
-            f.write("timestamp,student_id,name,confidence\n")
+    ensure_attendance_csv()
 
 
 def remove_attendance_crops_folder():
@@ -303,7 +304,7 @@ class AttendanceWorker(QtCore.QThread):
     def run(self):
         try:
             # ensure csv exists and crops folder removed
-            ensure_attendance_csv()
+            ensure_attendance_csv_gui()
             remove_attendance_crops_folder()
 
             # detection
@@ -355,7 +356,7 @@ class AttendanceWorker(QtCore.QThread):
             name = self.le.inverse_transform([idx_cls])[0]
 
             # check recent duplicates
-            if recently_marked(name):
+            if recently_marked(name, minutes=1):
                 self.log_signal.emit(f"{name} recently marked; skipping duplicate.")
                 self.finished_signal.emit({"ok": False, "reason": "recent_duplicate", "name": name})
                 return
@@ -434,7 +435,6 @@ class MainWindow(QtWidgets.QMainWindow):
         reg_form.addRow("Images:", self.spin_n)
         self.btn_reg = QtWidgets.QPushButton("Register (Webcam)")
         self.btn_reg.clicked.connect(self.on_register)
-        reg_form.addRow(self.btn_reg)
         self.btn_reg_file = QtWidgets.QPushButton("Register From File")
         self.btn_reg_file.clicked.connect(self.on_register_file)
         reg_form.addRow(self.btn_reg_file)
@@ -484,6 +484,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.register_count = 0
         self._last_capture_time = 0.0
         self.embedding_worker = None
+        self.attendance_worker = None
         self.recognition_active = False
 
         # camera worker
@@ -494,7 +495,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self.last_frame = None
 
         # ensure CSV and remove crops (one-time)
-        ensure_attendance_csv()
+        ensure_attendance_csv_gui()
         remove_attendance_crops_folder()
 
     # start camera worker
@@ -666,12 +667,18 @@ class MainWindow(QtWidgets.QMainWindow):
         if self.last_frame is None:
             self.log_msg("No frame available to take attendance")
             return
+        # Prevent starting multiple workers simultaneously
+        if self.attendance_worker and self.attendance_worker.isRunning():
+            self.log_msg("Attendance already in progress")
+            return
         self.btn_attendance.setEnabled(False)
         self.log_msg("Taking attendance (one-shot)...")
-        worker = AttendanceWorker(self.last_frame)
-        worker.log_signal.connect(self.log_msg)
+        self.attendance_worker = AttendanceWorker(self.last_frame)
+        self.attendance_worker.log_signal.connect(self.log_msg)
 
         def finished_handler(res):
+            # Clear reference so GC won't destroy an active thread prematurely
+            self.attendance_worker = None
             self.btn_attendance.setEnabled(True)
             if res.get("ok"):
                 name = res.get("name", "")
@@ -692,13 +699,16 @@ class MainWindow(QtWidgets.QMainWindow):
                     self.log_msg(f"Attendance failed: {reason} {err}")
                     QMessageBox.critical(self, "Attendance", f"Failed: {reason}\n{err}")
 
-        worker.finished_signal.connect(finished_handler)
-        worker.start()
+        self.attendance_worker.finished_signal.connect(finished_handler)
+        self.attendance_worker.start()
 
     def closeEvent(self, event):
         try:
             if self.cam_worker:
                 self.cam_worker.stop_camera()
+            if self.attendance_worker and self.attendance_worker.isRunning():
+                # Wait briefly for attendance worker to finish to avoid QThread warnings
+                self.attendance_worker.wait(1000)
         except Exception:
             pass
         event.accept()

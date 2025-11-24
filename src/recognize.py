@@ -37,9 +37,14 @@ def recognize(cam_index=0, threshold=0.75):
                     label = f"{name} {conf:.2f}" if conf >= threshold else f"Unknown {conf:.2f}"
                     cv2.rectangle(frame,(x1,y1),(x2,y2),color,2)
                     cv2.putText(frame,label,(x1,y1-10),cv2.FONT_HERSHEY_SIMPLEX,0.8,color,2)
-                    if conf >= threshold and not recently_marked(name):
+                    # Use a short duplicate window so marks can happen again quickly during testing
+                    if conf >= threshold and not recently_marked(name, minutes=1):
+                        # student_id defaults to name in append_attendance
                         append_attendance(name, conf)
                         print('Marked:', name, conf)
+                    elif conf >= threshold:
+                        # Helpful log when duplicate suppresses a mark
+                        print('Skipped (recent duplicate):', name)
             cv2.imshow('Recognition', frame)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
