@@ -361,8 +361,7 @@ class AttendanceWorker(QtCore.QThread):
                 self.finished_signal.emit({"ok": False, "reason": "recent_duplicate", "name": name})
                 return
 
-            # map to student id if map exists
-            student_id = name
+            student_id = None
             try:
                 if os.path.exists(ID_MAP_PATH):
                     with open(ID_MAP_PATH, "r", encoding="utf-8") as f:
@@ -376,7 +375,14 @@ class AttendanceWorker(QtCore.QThread):
             # timestamp,student_id,name,confidence
             try:
                 ts = datetime.now().isoformat(sep=" ", timespec="seconds")
-                line = f"{ts},{student_id},{name},{conf:.4f}\n"
+                if student_id is None and self.le is not None:
+                    try:
+                        sid = str(int(self.le.transform([name])[0]))
+                    except Exception:
+                        sid = name
+                else:
+                    sid = str(student_id) if student_id is not None else name
+                line = f"{ts},{sid},{name},{conf:.4f}\n"
                 with open(ATT_CSV, "a", encoding="utf-8", newline="") as f:
                     f.write(line)
             except Exception as e:
@@ -384,8 +390,8 @@ class AttendanceWorker(QtCore.QThread):
                 self.finished_signal.emit({"ok": False, "reason": "write_failed", "error": str(e)})
                 return
 
-            self.log_signal.emit(f"Attendance marked: {name} ({student_id}) conf={conf:.3f}")
-            self.finished_signal.emit({"ok": True, "name": name, "student_id": student_id, "confidence": conf})
+            self.log_signal.emit(f"Attendance marked: {name} ({sid}) conf={conf:.3f}")
+            self.finished_signal.emit({"ok": True, "name": name, "student_id": sid, "confidence": conf})
 
         except Exception as e:
             tb = traceback.format_exc()

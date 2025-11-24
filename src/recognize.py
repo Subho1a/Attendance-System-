@@ -39,8 +39,11 @@ def recognize(cam_index=0, threshold=0.75):
                     cv2.putText(frame,label,(x1,y1-10),cv2.FONT_HERSHEY_SIMPLEX,0.8,color,2)
                     # Use a short duplicate window so marks can happen again quickly during testing
                     if conf >= threshold and not recently_marked(name, minutes=1):
-                        # student_id defaults to name in append_attendance
-                        append_attendance(name, conf)
+                        try:
+                            sid = str(int(le.transform([name])[0]))
+                        except Exception:
+                            sid = name
+                        append_attendance(name, conf, student_id=sid)
                         print('Marked:', name, conf)
                     elif conf >= threshold:
                         # Helpful log when duplicate suppresses a mark
