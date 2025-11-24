@@ -1,0 +1,5 @@
+# Ignore entire folder
+models/
+data/
+venv/
+__pycache__/
