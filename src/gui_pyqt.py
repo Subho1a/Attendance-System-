@@ -435,6 +435,7 @@ class MainWindow(QtWidgets.QMainWindow):
         reg_form.addRow("Images:", self.spin_n)
         self.btn_reg = QtWidgets.QPushButton("Register (Webcam)")
         self.btn_reg.clicked.connect(self.on_register)
+        reg_form.addRow(self.btn_reg)
         self.btn_reg_file = QtWidgets.QPushButton("Register From File")
         self.btn_reg_file.clicked.connect(self.on_register_file)
         reg_form.addRow(self.btn_reg_file)
