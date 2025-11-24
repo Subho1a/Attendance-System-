@@ -586,6 +586,27 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cam_worker.recognition_enabled = False
             self.recognition_active = False
             self.btn_recog.setText("Start Recognition")
+        # Prepare user image directory fresh for this session to avoid embedding stale images
+        user_dir = os.path.join(USERS_DIR, name)
+        imgs_dir = os.path.join(user_dir, "imgs")
+        os.makedirs(imgs_dir, exist_ok=True)
+        removed = 0
+        for fn in os.listdir(imgs_dir):
+            if fn.lower().endswith(".jpg"):
+                try:
+                    os.remove(os.path.join(imgs_dir, fn))
+                    removed += 1
+                except Exception:
+                    pass
+        # Remove stale embeddings if present
+        try:
+            emb_path = os.path.join(user_dir, "embeddings.npy")
+            if os.path.exists(emb_path):
+                os.remove(emb_path)
+        except Exception:
+            pass
+        if removed:
+            self.log_msg(f"Cleared {removed} previous images for {name}")
         self.btn_reg.setEnabled(False)
         self.btn_reg_file.setEnabled(False)
         self.btn_train.setEnabled(False)
