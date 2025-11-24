@@ -3,3 +3,4 @@ models/
 data/
 venv/
 __pycache__/
+attendance/attendance.csv
